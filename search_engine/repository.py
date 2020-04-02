@@ -2,7 +2,10 @@
 '''
 
 import json
+import re
+import nltk
 from collections import defaultdict
+from nltk.corpus import stopwords
 
 from nltk.tokenize import word_tokenize
 
@@ -34,7 +37,30 @@ def create_repo(corpus):
     Returns:
         Um dicionário que mapeia docid para uma lista de tokens.
     '''
-    return {docid: word_tokenize(text) for docid, text in corpus.items()}
+    repo = {}
+    stop_words = set(stopwords.words('english')) 
+
+    for fileid in corpus.keys():
+        filtered_text = corpus[fileid].lower()
+        filtered_text = filtered_text.replace("\n"," ")
+        filtered_text = re.sub(re.compile("\\\S+;", re.M), "", filtered_text)
+        filtered_text = re.sub(re.compile("&\S+;", re.M), "", filtered_text)
+        filtered_text = re.sub(re.compile("[A-Z.]+>", re.M), "", filtered_text)
+        filtered_text = re.sub(re.compile("[ ]{2,}", re.M), " ", filtered_text)
+        filtered_text = re.sub(re.compile("'\S+", re.M), "", filtered_text)
+        filtered_text = re.sub(re.compile('\\"', re.M), '', filtered_text)
+        filtered_text = re.sub(re.compile('\. ', re.M), ' ', filtered_text)
+        filtered_text = re.sub(re.compile('\, ', re.M), ' ', filtered_text)
+        filtered_text = re.sub(re.compile('\(', re.M), '', filtered_text)
+        filtered_text = re.sub(re.compile('\)', re.M), '', filtered_text)
+        filtered_text = re.sub(re.compile('\>', re.M), '', filtered_text)
+        filtered_text = re.sub(re.compile('-/', re.M), '', filtered_text)
+        filtered_text = re.sub(re.compile('\d+[\.|,]*', re.M), '', filtered_text)
+        tokens = nltk.word_tokenize(filtered_text)
+        tokens = [w for w in tokens if not w in stop_words]
+        repo[fileid] = tokens
+
+    return repo
 
 
 def create_index(repo):
@@ -47,13 +73,13 @@ def create_index(repo):
         O índice reverso do repositorio: um dicionario que mapeia token para
         lista de docids.
     '''
+    index = defaultdict(lambda: defaultdict(list))
 
-    indexed = defaultdict(set)
-    for doc_id, words in repo.items():
-        for word in words:
-            indexed[word].add(doc_id)
+    for fileid in repo.keys():
+        for i in range(len(repo[fileid])):
+            index[repo[fileid][i]][fileid].append(i)
 
-    return {word: list(doc_ids) for word, doc_ids in indexed.items()}
+    return index
 
 
 def save_repo(filename, repo):
